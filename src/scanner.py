@@ -1,64 +1,57 @@
 from pyzbar.pyzbar import decode
-from PIL import Image
+from PIL import Image, ImageOps
 import numpy as np
 
 
 class QRScanner:
     def scan_image(self, image_array):
         """
-        Scans a numpy array (image) for QR codes using pyzbar.
-        Returns: EAN, Date, Status Message
+        Scans an image for QR codes and returns (EAN, Date, Status, Debug_Image).
+        Includes thresholding to fix overexposure issues.
         """
         if image_array is None:
-            return None, None, "❌ No image provided"
+            return None, None, "❌ No image provided", None
 
         try:
-            # 1. Normalize the image data
-            # Ensure we have uint8 data (0-255) because pyzbar can fail on float arrays
+            # 1. Normalize image data
             if image_array.dtype != np.uint8:
-                # If data is 0-1 float, scale it
                 if image_array.max() <= 1.0:
                     image_array = (image_array * 255).astype(np.uint8)
                 else:
                     image_array = image_array.astype(np.uint8)
 
-            # 2. Convert to Grayscale using PIL
-            # Pyzbar performs significantly better on grayscale (L-mode) images
-            img = Image.fromarray(image_array)
-            img_gray = img.convert('L')
+            # 2. Convert to Grayscale and enhance contrast
+            # Bright phone screens (from your screenshot) often need high contrast to be readable
+            img = Image.fromarray(image_array).convert('L')
+            img = ImageOps.autocontrast(img)
 
-            # 3. Detect
-            decoded_objects = decode(img_gray)
+            # 3. Apply Hard Thresholding (The Visual Debugger Image)
+            # This turns every pixel either purely black or purely white
+            img_thresh = img.point(lambda p: 255 if p > 128 else 0)
+            debug_view = np.array(img_thresh)
 
-            # Fallback: If grayscale failed, try the original just in case
+            # 4. Detect on both normal and thresholded versions
+            decoded_objects = decode(img) or decode(img_thresh)
+
             if not decoded_objects:
-                decoded_objects = decode(image_array)
+                return None, None, "⚠️ Scanning... (Reduce glare if lines look broken in debugger)", debug_view
 
-            if not decoded_objects:
-                return None, None, "⚠️ No QR code found. Hold steady/move closer."
-
-            # 4. Process Results
+            # 5. Process Results
             for obj in decoded_objects:
                 data = obj.data.decode("utf-8")
+                print(f"--- DETECTED: {data} ---")
 
-                # --- DEBUGGER: PRINT TO TERMINAL ---
-                print(f"--- CAMERA SAW: {data} ---")
-                # -----------------------------------
-
-                # Check for our specific format: "EAN,YYYY-MM-DD"
                 if "," in data:
                     parts = data.split(',')
                     if len(parts) >= 2:
                         ean = parts[0].strip()
                         exp_date = parts[1].strip()
-                        return ean, exp_date, f"✅ Scanned: {ean}"
+                        return ean, exp_date, f"✅ Scanned: {ean}", debug_view
 
-                # If code is found but it's just a regular barcode (no date)
-                return data, None, f"⚠️ Scanned '{data}' (Not a valid label)"
+                return data, None, f"⚠️ Scanned '{data}' (Invalid label format)", debug_view
 
-            return None, None, "⚠️ No readable code found"
+            return None, None, "⚠️ No readable code found", debug_view
 
         except Exception as e:
-            # This catches issues like missing 'zbar' library
             print(f"SCANNER ERROR: {e}")
-            return None, None, f"❌ Scan Error: {str(e)}"
+            return None, None, f"❌ Scan Error: {str(e)}", None

@@ -1,6 +1,5 @@
 import gradio as gr
 
-
 def create_app(products, inventory, qr_gen, alerts, scanner):
     # --- Wrapper Functions ---
     def wrapper_generate_qr(ean):
@@ -13,6 +12,7 @@ def create_app(products, inventory, qr_gen, alerts, scanner):
         return inventory.update_stock(ean, name, exp_date, qty, action)
 
     def wrapper_check_alerts():
+        # Returns (message, dataframe)
         return alerts.check_alerts(inventory.get_raw_inventory())
 
     def wrapper_table_select(evt: gr.SelectData, current_df):
@@ -25,31 +25,36 @@ def create_app(products, inventory, qr_gen, alerts, scanner):
 
     def wrapper_scan(image):
         if image is None:
-            return gr.update(), gr.update(), ""
-        print(".", end="", flush=True)
-        ean, date, msg = scanner.scan_image(image)
+            return gr.update(), gr.update(), gr.update(), gr.update()
+
+        print(".", end="", flush=True) # Confirms loop is running in terminal
+
+        # Now returns 4 values
+        ean, date, msg, debug_img = scanner.scan_image(image)
+
         if ean:
-            print(f"\n✅ FOUND: EAN={ean}, Date={date}, Msg={msg}")
+            print(f"\n✅ SYSTEM DETECTED: EAN={ean}, Date={date}")
 
+        # Update EAN, Date, Log, and Debug Image
         if ean and date:
-            return ean, date, msg
+            return ean, date, msg, debug_img
         elif ean:
-            return ean, gr.update(), msg
+            return ean, gr.update(), msg, debug_img
         else:
-            return gr.update(), gr.update(), msg
+            return gr.update(), gr.update(), msg, debug_img
 
-    # --- THE FIX: Functions to Hide/Show Camera ---
     def stop_webcam():
-        # This clears the image AND hides the component
-        return gr.update(value=None, visible=False)
+        return gr.update(value=None, visible=False), gr.update(active=False)
 
     def start_webcam():
-        # This brings the component back
-        return gr.update(visible=True)
+        return gr.update(visible=True), gr.update(active=True)
 
     # --- Visual Layout ---
     with gr.Blocks(title="Modular Inventory System") as app:
         gr.Markdown("# 🏢 Store Inventory System")
+
+        # Robust Timer for scanning
+        scan_timer = gr.Timer(0.5, active=False)
 
         with gr.Tabs():
             # TAB 1: PRODUCT SETUP
@@ -80,12 +85,14 @@ def create_app(products, inventory, qr_gen, alerts, scanner):
                 with gr.Row():
                     with gr.Column():
                         gr.Markdown("### 📷 Scan Item")
-
                         cam_input = gr.Image(sources=["webcam"], type="numpy", streaming=True)
 
                         with gr.Row():
                             btn_start_cam = gr.Button("▶️ Open Camera", variant="primary")
                             btn_stop_cam = gr.Button("❌ Stop Camera", variant="stop")
+
+                        # VISUAL DEBUGGER - Shows what the scanner "sees"
+                        debug_view = gr.Image(label="Scanner View (B&W Debugger)", interactive=False)
 
                         reg_ean = gr.Textbox(label="EAN")
                         reg_date = gr.Textbox(label="Exp Date")
@@ -96,19 +103,23 @@ def create_app(products, inventory, qr_gen, alerts, scanner):
                     with gr.Column():
                         reg_table = gr.Dataframe(value=inventory.get_inventory_df())
 
-                # --- WIRING FOR TAB 3 ---
-                cam_input.change(wrapper_scan, inputs=[cam_input], outputs=[reg_ean, reg_date, reg_log])
+                # WIRING - Timer triggers the scan function
+                scan_timer.tick(
+                    wrapper_scan,
+                    inputs=[cam_input],
+                    outputs=[reg_ean, reg_date, reg_log, debug_view]
+                )
 
-                # These buttons hide and show the camera feed
-                btn_stop_cam.click(fn=stop_webcam, outputs=cam_input)
-                btn_start_cam.click(fn=start_webcam, outputs=cam_input)
-
+                btn_stop_cam.click(fn=stop_webcam, outputs=[cam_input, scan_timer])
+                btn_start_cam.click(fn=start_webcam, outputs=[cam_input, scan_timer])
                 btn_in.click(wrapper_update_stock, [reg_ean, reg_date, reg_qty, gr.State("Add")], [reg_log, reg_table])
 
-            # TAB 4: ALERTS
+            # TAB 4: ALERTS (RESTORED)
             with gr.TabItem("4. Alerts"):
-                btn_alert = gr.Button("Check Expirations")
+                btn_alert = gr.Button("Check Expirations", variant="primary")
+                alert_msg = gr.Textbox(label="Alert Status")
                 alert_tbl = gr.Dataframe()
-                btn_alert.click(wrapper_check_alerts, None, [gr.State(), alert_tbl])
+                # Connect both alert message and table
+                btn_alert.click(wrapper_check_alerts, None, [alert_msg, alert_tbl])
 
     return app
