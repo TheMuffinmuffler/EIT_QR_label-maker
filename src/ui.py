@@ -2,12 +2,7 @@ import gradio as gr
 
 
 def create_app(products, inventory, qr_gen, alerts, scanner):
-    """
-    Constructs the Gradio interface.
-    Receives the backend instances (products, inventory, etc.) as arguments.
-    """
-
-    # --- Wrapper Functions (Internal Logic for UI) ---
+    # --- Wrapper Functions ---
     def wrapper_generate_qr(ean):
         details = products.get_product_details(ean)
         return qr_gen.generate_qr(ean, details)
@@ -23,34 +18,37 @@ def create_app(products, inventory, qr_gen, alerts, scanner):
     def wrapper_table_select(evt: gr.SelectData, current_df):
         row_index = evt.index[0]
         col_index = evt.index[1]
-        # Check if user clicked the "DELETE" column (index 3)
         if col_index == 3:
             ean_to_remove = current_df.iloc[row_index]["EAN"]
             return products.delete_product(ean_to_remove)
         return "Click the ❌ column to delete.", products.get_products_df()
 
     def wrapper_scan(image):
-            ean, date, msg = scanner.scan_image(image)
+        if image is None:
+            return gr.update(), gr.update(), ""
+        print(".", end="", flush=True)
+        ean, date, msg = scanner.scan_image(image)
+        if ean:
+            print(f"\n✅ FOUND: EAN={ean}, Date={date}, Msg={msg}")
 
-            # Print to terminal for debugging
-            print(f"DEBUG SCAN: EAN={ean}, Date={date}, Msg={msg}")
+        if ean and date:
+            return ean, date, msg
+        elif ean:
+            return ean, gr.update(), msg
+        else:
+            return gr.update(), gr.update(), msg
 
-            if ean and date:
-                # Perfect match (Your generated label)
-                return ean, date, msg
-            elif ean:
-                # Partial match (Normal barcode) -> Fill EAN, keep Date empty
-                return ean, gr.update(), msg
-            else:
-                # No scan -> Change nothing
-                return gr.update(), gr.update(), msg
+    # --- THE FIX: Functions to Hide/Show Camera ---
+    def stop_webcam():
+        # This clears the image AND hides the component
+        return gr.update(value=None, visible=False)
 
-    # Helper to close camera
-    def close_camera():
-        return None
+    def start_webcam():
+        # This brings the component back
+        return gr.update(visible=True)
 
-    # --- The Visual Layout ---
-    with gr.Blocks(title="Modular Inventory System", theme=gr.themes.Soft()) as app:
+    # --- Visual Layout ---
+    with gr.Blocks(title="Modular Inventory System") as app:
         gr.Markdown("# 🏢 Store Inventory System")
 
         with gr.Tabs():
@@ -59,89 +57,58 @@ def create_app(products, inventory, qr_gen, alerts, scanner):
                 with gr.Row():
                     with gr.Column(scale=1):
                         gr.Markdown("### ➕ Add Product")
-                        add_ean = gr.Textbox(label="EAN Code", placeholder="e.g. 12345")
-                        add_name = gr.Textbox(label="Name", placeholder="e.g. Milk")
+                        add_ean = gr.Textbox(label="EAN Code")
+                        add_name = gr.Textbox(label="Name")
                         add_days = gr.Number(label="Shelf Life (Days)", value=7)
                         btn_add = gr.Button("Save Product", variant="primary")
-
-                        gr.Markdown("---")
-                        gr.Markdown("### 🗑️ Remove Product (Manual)")
-                        del_ean_input = gr.Textbox(label="Enter EAN to Remove")
-                        btn_manual_del = gr.Button("Remove Item", variant="stop")
-
                         msg_box = gr.Textbox(label="System Log")
-
                     with gr.Column(scale=2):
-                        gr.Markdown("### 📦 Product Database")
-                        product_df = gr.Dataframe(
-                            value=products.get_products_df(),
-                            interactive=False,
-                            headers=["EAN", "Name", "Shelf Life", "DELETE"]
-                        )
+                        product_df = gr.Dataframe(value=products.get_products_df(), interactive=False)
 
-                # Wiring Tab 1
                 btn_add.click(products.add_product, [add_ean, add_name, add_days], [msg_box, product_df])
-                btn_manual_del.click(products.delete_product, [del_ean_input], [msg_box, product_df])
                 product_df.select(wrapper_table_select, [product_df], [msg_box, product_df])
 
             # TAB 2: QR GENERATOR
             with gr.TabItem("2. Print QR Labels"):
-                gr.Markdown("### QR Generator")
-                with gr.Row():
-                    qr_ean = gr.Textbox(label="Scan/Type EAN")
-                    btn_qr = gr.Button("Generate Label", variant="primary")
-                with gr.Row():
-                    out_img = gr.Image(label="Label")
-                    out_txt = gr.Textbox(label="Info")
+                qr_ean = gr.Textbox(label="Scan/Type EAN")
+                btn_qr = gr.Button("Generate Label", variant="primary")
+                out_img = gr.Image(label="Label")
+                btn_qr.click(wrapper_generate_qr, [qr_ean], [out_img, gr.State()])
 
-                btn_qr.click(wrapper_generate_qr, [qr_ean], [out_img, out_txt])
-
-            # TAB 3: CASH REGISTER (Webcam + Close Button)
+            # TAB 3: CASH REGISTER
             with gr.TabItem("3. Cash Register"):
                 with gr.Row():
                     with gr.Column():
                         gr.Markdown("### 📷 Scan Item")
 
-                        # Webcam Input
-                        cam_input = gr.Image(sources=["webcam"], label="Scan QR Code", type="numpy")
-
-                        # Close Camera Button
-                        btn_close_cam = gr.Button("❌ Close Camera", variant="secondary")
-
-                        gr.Markdown("### ⌨️ Item Details")
-                        reg_ean = gr.Textbox(label="EAN")
-                        reg_date = gr.Textbox(label="Exp Date (YYYY-MM-DD)")
-                        reg_qty = gr.Number(label="Qty", value=1)
+                        cam_input = gr.Image(sources=["webcam"], type="numpy", streaming=True)
 
                         with gr.Row():
-                            btn_in = gr.Button("Stock IN (+)", variant="primary")
-                            btn_out = gr.Button("Stock OUT (-)", variant="stop")
+                            btn_start_cam = gr.Button("▶️ Open Camera", variant="primary")
+                            btn_stop_cam = gr.Button("❌ Stop Camera", variant="stop")
+
+                        reg_ean = gr.Textbox(label="EAN")
+                        reg_date = gr.Textbox(label="Exp Date")
+                        reg_qty = gr.Number(label="Qty", value=1)
+                        btn_in = gr.Button("Stock IN (+)")
                         reg_log = gr.Textbox(label="Log")
 
                     with gr.Column():
-                        gr.Markdown("### Inventory")
                         reg_table = gr.Dataframe(value=inventory.get_inventory_df())
 
-                # Wiring the Scanner
-                cam_input.change(
-                    wrapper_scan,
-                    inputs=[cam_input],
-                    outputs=[reg_ean, reg_date, reg_log]
-                )
+                # --- WIRING FOR TAB 3 ---
+                cam_input.change(wrapper_scan, inputs=[cam_input], outputs=[reg_ean, reg_date, reg_log])
 
-                # Wiring the Close Button
-                btn_close_cam.click(close_camera, inputs=None, outputs=cam_input)
+                # These buttons hide and show the camera feed
+                btn_stop_cam.click(fn=stop_webcam, outputs=cam_input)
+                btn_start_cam.click(fn=start_webcam, outputs=cam_input)
 
-                # Wiring the Buttons
                 btn_in.click(wrapper_update_stock, [reg_ean, reg_date, reg_qty, gr.State("Add")], [reg_log, reg_table])
-                btn_out.click(wrapper_update_stock, [reg_ean, reg_date, reg_qty, gr.State("Remove")],
-                              [reg_log, reg_table])
 
             # TAB 4: ALERTS
             with gr.TabItem("4. Alerts"):
-                btn_alert = gr.Button("Check Expirations (Tomorrow)")
-                alert_msg = gr.Textbox()
+                btn_alert = gr.Button("Check Expirations")
                 alert_tbl = gr.Dataframe()
-                btn_alert.click(wrapper_check_alerts, None, [alert_msg, alert_tbl])
+                btn_alert.click(wrapper_check_alerts, None, [gr.State(), alert_tbl])
 
     return app
