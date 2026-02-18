@@ -29,13 +29,21 @@ def create_app(products, inventory, qr_gen, alerts, scanner):
             return products.delete_product(ean_to_remove)
         return "Click the ❌ column to delete.", products.get_products_df()
 
-    # Wrapper for Scanning
     def wrapper_scan(image):
-        ean, date, msg = scanner.scan_image(image)
-        if ean and date:
-            return ean, date, msg
-        else:
-            return gr.update(), gr.update(), msg
+            ean, date, msg = scanner.scan_image(image)
+
+            # Print to terminal for debugging
+            print(f"DEBUG SCAN: EAN={ean}, Date={date}, Msg={msg}")
+
+            if ean and date:
+                # Perfect match (Your generated label)
+                return ean, date, msg
+            elif ean:
+                # Partial match (Normal barcode) -> Fill EAN, keep Date empty
+                return ean, gr.update(), msg
+            else:
+                # No scan -> Change nothing
+                return gr.update(), gr.update(), msg
 
     # Helper to close camera
     def close_camera():
