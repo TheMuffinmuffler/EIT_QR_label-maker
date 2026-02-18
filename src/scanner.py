@@ -2,7 +2,6 @@ from pyzbar.pyzbar import decode
 from PIL import Image, ImageOps
 import numpy as np
 
-
 class QRScanner:
     def scan_image(self, image_array):
         """
@@ -21,7 +20,7 @@ class QRScanner:
                     image_array = image_array.astype(np.uint8)
 
             # 2. Convert to Grayscale and enhance contrast
-            # Bright phone screens (from your screenshot) often need high contrast to be readable
+            # Bright phone screens often need high contrast to be readable
             img = Image.fromarray(image_array).convert('L')
             img = ImageOps.autocontrast(img)
 
@@ -34,7 +33,8 @@ class QRScanner:
             decoded_objects = decode(img) or decode(img_thresh)
 
             if not decoded_objects:
-                return None, None, "⚠️ Scanning... (Reduce glare if lines look broken in debugger)", debug_view
+                # IMPORTANT: Still return the debug_view so the UI isn't blank
+                return None, None, "⚠️ Scanning... (Adjust brightness/distance)", debug_view
 
             # 5. Process Results
             for obj in decoded_objects:
@@ -48,7 +48,7 @@ class QRScanner:
                         exp_date = parts[1].strip()
                         return ean, exp_date, f"✅ Scanned: {ean}", debug_view
 
-                return data, None, f"⚠️ Scanned '{data}' (Invalid label format)", debug_view
+                return data, None, f"⚠️ Scanned '{data}' (Invalid format)", debug_view
 
             return None, None, "⚠️ No readable code found", debug_view
 

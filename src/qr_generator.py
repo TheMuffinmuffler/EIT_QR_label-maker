@@ -1,8 +1,14 @@
 import qrcode
+import os
 from datetime import datetime, timedelta
 
-
 class QRGenerator:
+    def __init__(self):
+        # Path to the new folder for saving labels
+        self.output_dir = "qrcodes"
+        if not os.path.exists(self.output_dir):
+            os.makedirs(self.output_dir)
+
     def generate_qr(self, ean, product_details):
         ean = str(ean).strip()
 
@@ -27,4 +33,9 @@ class QRGenerator:
         qr.make(fit=True)
         img = qr.make_image(fill_color="black", back_color="white")
 
-        return img.get_image(), readable_text
+        # Save to the new folder
+        filename = f"{ean}_{exp_date_str}.png"
+        filepath = os.path.join(self.output_dir, filename)
+        img.save(filepath)
+
+        return img.get_image(), f"{readable_text}\n\n💾 Saved to: {filepath}"
