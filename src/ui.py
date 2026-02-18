@@ -1,7 +1,7 @@
 import gradio as gr
 
 
-def create_app(products, inventory, qr_gen, alerts):
+def create_app(products, inventory, qr_gen, alerts, scanner):
     """
     Constructs the Gradio interface.
     Receives the backend instances (products, inventory, etc.) as arguments.
@@ -28,6 +28,18 @@ def create_app(products, inventory, qr_gen, alerts):
             ean_to_remove = current_df.iloc[row_index]["EAN"]
             return products.delete_product(ean_to_remove)
         return "Click the ❌ column to delete.", products.get_products_df()
+
+    # Wrapper for Scanning
+    def wrapper_scan(image):
+        ean, date, msg = scanner.scan_image(image)
+        if ean and date:
+            return ean, date, msg
+        else:
+            return gr.update(), gr.update(), msg
+
+    # Helper to close camera
+    def close_camera():
+        return None
 
     # --- The Visual Layout ---
     with gr.Blocks(title="Modular Inventory System", theme=gr.themes.Soft()) as app:
@@ -76,22 +88,43 @@ def create_app(products, inventory, qr_gen, alerts):
 
                 btn_qr.click(wrapper_generate_qr, [qr_ean], [out_img, out_txt])
 
-            # TAB 3: CASH REGISTER
+            # TAB 3: CASH REGISTER (Webcam + Close Button)
             with gr.TabItem("3. Cash Register"):
                 with gr.Row():
                     with gr.Column():
-                        gr.Markdown("### Scan Item")
+                        gr.Markdown("### 📷 Scan Item")
+
+                        # Webcam Input
+                        cam_input = gr.Image(sources=["webcam"], label="Scan QR Code", type="numpy")
+
+                        # Close Camera Button
+                        btn_close_cam = gr.Button("❌ Close Camera", variant="secondary")
+
+                        gr.Markdown("### ⌨️ Item Details")
                         reg_ean = gr.Textbox(label="EAN")
                         reg_date = gr.Textbox(label="Exp Date (YYYY-MM-DD)")
                         reg_qty = gr.Number(label="Qty", value=1)
+
                         with gr.Row():
                             btn_in = gr.Button("Stock IN (+)", variant="primary")
                             btn_out = gr.Button("Stock OUT (-)", variant="stop")
                         reg_log = gr.Textbox(label="Log")
+
                     with gr.Column():
                         gr.Markdown("### Inventory")
                         reg_table = gr.Dataframe(value=inventory.get_inventory_df())
 
+                # Wiring the Scanner
+                cam_input.change(
+                    wrapper_scan,
+                    inputs=[cam_input],
+                    outputs=[reg_ean, reg_date, reg_log]
+                )
+
+                # Wiring the Close Button
+                btn_close_cam.click(close_camera, inputs=None, outputs=cam_input)
+
+                # Wiring the Buttons
                 btn_in.click(wrapper_update_stock, [reg_ean, reg_date, reg_qty, gr.State("Add")], [reg_log, reg_table])
                 btn_out.click(wrapper_update_stock, [reg_ean, reg_date, reg_qty, gr.State("Remove")],
                               [reg_log, reg_table])
