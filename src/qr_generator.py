@@ -10,9 +10,28 @@ class QRGenerator:
         # Path to folders for saving labels and PDFs
         self.output_dir = "qrcodes"
         self.pdf_dir = "pdfs"
+        self.qr_limit = 5
+        self.pdf_limit = 10
         for d in [self.output_dir, self.pdf_dir]:
             if not os.path.exists(d):
                 os.makedirs(d)
+
+    def _cleanup_old_files(self, directory, limit):
+        """Removes the oldest files in the directory if the count exceeds the limit."""
+        try:
+            # Get list of files in directory with full paths
+            files = [os.path.join(directory, f) for f in os.listdir(directory) if os.path.isfile(os.path.join(directory, f))]
+            # Sort files by modification time (oldest first)
+            files.sort(key=os.path.getmtime)
+            
+            # Deletion logic
+            if len(files) > limit:
+                files_to_delete = files[:len(files) - limit]
+                for f in files_to_delete:
+                    os.remove(f)
+                    print(f"Cleaned up old file: {f}")
+        except Exception as e:
+            print(f"Error during file cleanup: {e}")
 
     def generate_qr(self, ean, product_details, manual_exp_date=None):
         ean = str(ean).strip()
@@ -46,6 +65,9 @@ class QRGenerator:
         filename = f"{ean}_{clean_name}_{exp_date_str}.png"
         filepath = os.path.join(self.output_dir, filename)
         img.save(filepath)
+
+        # Cleanup old QR codes
+        self._cleanup_old_files(self.output_dir, self.qr_limit)
 
         return img.get_image(), f"{readable_text}\n\nSaved to: {filepath}", filepath
 
@@ -91,4 +113,8 @@ class QRGenerator:
                 y = height - margin - label_h
 
         c.save()
+
+        # Cleanup old PDFs
+        self._cleanup_old_files(self.pdf_dir, self.pdf_limit)
+
         return pdf_path
