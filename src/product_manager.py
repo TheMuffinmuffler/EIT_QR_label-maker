@@ -38,6 +38,7 @@ class ProductManager:
             })
 
         df = pd.DataFrame(data, columns=["EAN", "Name", "Shelf Life", "Shelf Life (Opened)"])
+        df = df.sort_values(by="EAN", key=lambda x: pd.to_numeric(x, errors='coerce'))
         # Create directory if it doesn't exist just in case
         os.makedirs(os.path.dirname(self.file_path), exist_ok=True)
         df.to_csv(self.file_path, index=False)
@@ -84,4 +85,6 @@ class ProductManager:
                 "Shelf Life (Opened)": details.get('shelf_life_opened', 3),
                 "DELETE": "[X]"
             })
-        return pd.DataFrame(data)
+        df = pd.DataFrame(data)
+        return df.sort_values(by="EAN", key=lambda x: pd.to_numeric(x, errors='coerce'))
+    

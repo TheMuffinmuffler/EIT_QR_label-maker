@@ -374,10 +374,18 @@ def create_ui(products, inventory, opened, qr_gen, alerts, scanner):
         with ui.tab_panel(t5):
             ui.label('Expiration Alerts').classes('text-xl font-bold')
             alert_msg_label = ui.label('No alerts.').classes('text-lg')
-            alert_table = ui.table(columns=inv_cols, rows=[]).classes('w-full mt-4')
+            
+            alert_cols = [
+                {'name': 'EAN', 'label': 'EAN', 'field': 'EAN', 'sortable': True},
+                {'name': 'Name', 'label': 'Name', 'field': 'Name', 'sortable': True},
+                {'name': 'Exp Date', 'label': 'Exp Date', 'field': 'Exp Date', 'sortable': True},
+                {'name': 'Qty', 'label': 'Qty', 'field': 'Qty', 'sortable': True},
+                {'name': 'Status', 'label': 'Status', 'field': 'Status', 'sortable': True},
+            ]
+            alert_table = ui.table(columns=alert_cols, rows=[]).classes('w-full mt-4')
             
             def check_alerts():
-                msg, df = alerts.check_alerts(inventory.get_raw_inventory())
+                msg, df = alerts.check_alerts(inventory.get_raw_inventory(), opened.get_raw_opened())
                 alert_msg_label.text = msg
                 alert_table.rows[:] = df.to_dict('records')
                 alert_table.update()

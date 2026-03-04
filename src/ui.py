@@ -17,7 +17,7 @@ def create_app(products, inventory, opened, qr_gen, alerts, scanner):
         return opened.open_product(ean, exp_date)
 
     def wrapper_check_alerts():
-        return alerts.check_alerts(inventory.get_raw_inventory())
+        return alerts.check_alerts(inventory.get_raw_inventory(), opened.get_raw_opened())
 
     def wrapper_table_select(evt: gr.SelectData, current_df):
         row_index = evt.index[0]

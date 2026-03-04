@@ -121,3 +121,7 @@ class OpenedManager:
                 "REMOVE": "[X]"
             })
         return pd.DataFrame(data)
+
+    def get_raw_opened(self):
+        """Returns the raw list of opened products."""
+        return self.opened_list
