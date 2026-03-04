@@ -7,13 +7,15 @@ import numpy as np
 class QRScanner:
     def __init__(self):
         self.opencv_detector = cv2.QRCodeDetector()
+        self.last_data = None
+        self.blank_count = 0
 
     def scan_image(self, image_array):
         """
         Scans an image for QR codes and returns (EAN, Date, Status, Debug_Image).
         """
         if image_array is None:
-            return None, None, "❌ No image provided", None
+            return None, None, "No image provided", None
 
         try:
             # 1. Ensure it's a numpy array and handle different types
@@ -51,26 +53,43 @@ class QRScanner:
                 bgr_img = cv2.cvtColor(image_array, cv2.COLOR_RGB2BGR)
                 data, points, _ = self.opencv_detector.detectAndDecode(bgr_img)
                 if data:
+                    # Process OpenCV result with "once" logic
+                    if data == self.last_data:
+                        return None, None, "Same item detected", image_array
+                    self.last_data = data
+                    self.blank_count = 0
                     return self._process_data(data, image_array)
 
             if not decoded_objects:
-                return None, None, "⚠️ Scanning... Keep steady", debug_view
+                self.blank_count += 1
+                if self.blank_count > 10:  # Need 10 blank frames to reset
+                    self.last_data = None
+                return None, None, "Scanning... Keep steady", debug_view
 
-            # Process pyzbar results
+            # Process pyzbar results with "once" logic
+            self.blank_count = 0
             for obj in decoded_objects:
                 data = obj.data.decode("utf-8")
-                return self._process_data(data, debug_view)
+                code_type = obj.type  # e.g., 'QRCODE', 'EAN13', 'I25'
+                
+                if data == self.last_data:
+                    return None, None, f"Same {code_type} detected", debug_view
+                
+                self.last_data = data
+                return self._process_data(data, debug_view, code_type)
 
-            return None, None, "⚠️ No readable code found", debug_view
+            return None, None, "No readable code found", debug_view
 
         except Exception as e:
             print(f"DEBUG: Scan Error: {str(e)}")
-            return None, None, f"❌ Scan Error: {str(e)}", None
+            return None, None, f"Scan Error: {str(e)}", None
 
-    def _process_data(self, data, debug_view):
-        """Helper to parse the CSV format in the QR code"""
+    def _process_data(self, data, debug_view, code_type="CODE"):
+        """Helper to parse the CSV format in the QR code or handle raw barcodes"""
         if "," in data:
             parts = data.split(',')
             if len(parts) >= 2:
-                return parts[0].strip(), parts[1].strip(), f"✅ Scanned: {parts[0].strip()}", debug_view
-        return data, None, f"✅ Scanned EAN: {data}", debug_view
+                return parts[0].strip(), parts[1].strip(), f"Scanned QR ({parts[0].strip()})", debug_view
+        
+        # If no comma, it's likely a standard barcode (EAN-13, etc)
+        return data, None, f"Scanned {code_type}: {data}", debug_view

@@ -2,7 +2,7 @@ import gradio as gr
 import numpy as np
 
 
-def create_app(products, inventory, qr_gen, alerts, scanner):
+def create_app(products, inventory, opened, qr_gen, alerts, scanner):
     # --- Wrapper Functions ---
     def wrapper_generate_qr(ean):
         details = products.get_product_details(ean)
@@ -13,55 +13,60 @@ def create_app(products, inventory, qr_gen, alerts, scanner):
         name = details['name'] if details else "Unknown"
         return inventory.update_stock(ean, name, exp_date, qty, action)
 
+    def wrapper_open_product(ean, exp_date):
+        return opened.open_product(ean, exp_date)
+
     def wrapper_check_alerts():
         return alerts.check_alerts(inventory.get_raw_inventory())
 
     def wrapper_table_select(evt: gr.SelectData, current_df):
         row_index = evt.index[0]
         col_index = evt.index[1]
-        if col_index == 3:
+        if col_index == 4: # DELETE column in Product Setup is now at index 4
             ean_to_remove = current_df.iloc[row_index]["EAN"]
             return products.delete_product(ean_to_remove)
-        return "Click the ❌ column to delete.", products.get_products_df()
+        return "Click the [X] column to delete.", products.get_products_df()
+
+    def wrapper_opened_select(evt: gr.SelectData, current_df):
+        row_index = evt.index[0]
+        col_index = evt.index[1]
+        if col_index == 4: # REMOVE column index
+            return opened.remove_opened(row_index)
+        return "Click [X] to remove.", opened.get_opened_df()
 
     def wrapper_scan(image):
         if image is None:
-            return gr.update(), gr.update(), "🔴 Camera active but no frames received", gr.update()
+            return gr.update(), gr.update(), "No frames received", gr.update()
 
-        # Log that we received a frame
-        frame_info = f"📸 Frame received: {image.shape if hasattr(image, 'shape') else 'unknown shape'}"
-        
         ean, date, msg, debug_img = scanner.scan_image(image)
         
-        # Combine status message with frame info for debugging
-        status = f"{msg} | {frame_info}"
-
         return (
             ean if ean else gr.update(),
             date if date else gr.update(),
-            status,
+            msg,
             debug_img if debug_img is not None else gr.update()
         )
 
     # --- MAIN UI STRUCTURE ---
     with gr.Blocks(title="Modular Inventory System") as app:
-        gr.Markdown("# 🏢 Store Inventory System")
+        gr.Markdown("# Store Inventory System")
 
         with gr.Tabs():
             # TAB 1: PRODUCT SETUP
             with gr.TabItem("1. Product Setup"):
                 with gr.Row():
                     with gr.Column(scale=1):
-                        gr.Markdown("### ➕ Add Product")
+                        gr.Markdown("### Add Product")
                         add_ean = gr.Textbox(label="EAN Code")
                         add_name = gr.Textbox(label="Name")
                         add_days = gr.Number(label="Shelf Life (Days)", value=7)
+                        add_days_opened = gr.Number(label="Shelf Life Opened (Days)", value=3)
                         btn_add = gr.Button("Save Product", variant="primary")
                         msg_box = gr.Textbox(label="System Log")
                     with gr.Column(scale=2):
                         product_df = gr.Dataframe(value=products.get_products_df(), interactive=False)
 
-                btn_add.click(products.add_product, [add_ean, add_name, add_days], [msg_box, product_df])
+                btn_add.click(products.add_product, [add_ean, add_name, add_days, add_days_opened], [msg_box, product_df])
                 product_df.select(wrapper_table_select, [product_df], [msg_box, product_df])
 
             # TAB 2: QR GENERATOR
@@ -76,9 +81,9 @@ def create_app(products, inventory, qr_gen, alerts, scanner):
             with gr.TabItem("3. Cash Register"):
                 with gr.Row():
                     with gr.Column():
-                        gr.Markdown("### 📷 Live Scanner")
-                        # streaming=False often works better for manual capture
-                        cam_input = gr.Image(sources=["webcam"], type="numpy", label="Webcam Feed")
+                        gr.Markdown("### Live Scanner")
+                        # streaming=True enables real-time updates as frames arrive
+                        cam_input = gr.Image(sources=["webcam"], type="numpy", label="Webcam Feed", streaming=True)
                         file_input = gr.Image(sources=["upload"], type="numpy", label="Or Upload QR Image")
                         debug_view = gr.Image(label="Scanner View (B&W Debugger)", interactive=False)
 
@@ -87,10 +92,18 @@ def create_app(products, inventory, qr_gen, alerts, scanner):
                         reg_qty = gr.Number(label="Qty", value=1)
                         btn_in = gr.Button("Stock IN (+)", variant="primary")
                         reg_log = gr.Textbox(label="Scanner Status Log", value="Ready...")
-                        btn_scan = gr.Button("📸 Scan Webcam Snapshot", variant="primary")
+                        btn_scan = gr.Button("Manual Scan (Snapshot)", variant="primary")
 
                     with gr.Column():
                         reg_table = gr.Dataframe(value=inventory.get_inventory_df())
+
+                # Live streaming scan from webcam
+                cam_input.stream(
+                    wrapper_scan,
+                    inputs=[cam_input],
+                    outputs=[reg_ean, reg_date, reg_log, debug_view],
+                    trigger_mode="multiple"
+                )
 
                 # Manual Scan button for Webcam
                 btn_scan.click(
@@ -112,8 +125,35 @@ def create_app(products, inventory, qr_gen, alerts, scanner):
                     [reg_log, reg_table]
                 )
 
-            # TAB 4: ALERTS
-            with gr.TabItem("4. Alerts"):
+            # TAB 4: OPENED PRODUCTS
+            with gr.TabItem("4. Opened Products"):
+                with gr.Row():
+                    with gr.Column():
+                        gr.Markdown("### Open a Product")
+                        opened_cam = gr.Image(sources=["webcam"], type="numpy", label="Webcam", streaming=True)
+                        opened_ean = gr.Textbox(label="EAN")
+                        opened_date = gr.Textbox(label="Original Exp Date")
+                        btn_open = gr.Button("Mark as Opened", variant="primary")
+                        opened_log = gr.Textbox(label="Opened Status")
+
+                    with gr.Column():
+                        opened_table = gr.Dataframe(value=opened.get_opened_df())
+
+                # Hidden image component for debug view output (since scanner.scan_image returns 4 values)
+                opened_debug_hidden = gr.Image(visible=False)
+
+                opened_cam.stream(
+                    wrapper_scan,
+                    inputs=[opened_cam],
+                    outputs=[opened_ean, opened_date, opened_log, opened_debug_hidden],
+                    trigger_mode="multiple"
+                )
+
+                btn_open.click(wrapper_open_product, [opened_ean, opened_date], [opened_log, opened_table, reg_table])
+                opened_table.select(wrapper_opened_select, [opened_table], [opened_log, opened_table])
+
+            # TAB 5: ALERTS
+            with gr.TabItem("5. Alerts"):
                 btn_alert = gr.Button("Check Expirations", variant="primary")
                 alert_msg = gr.Textbox(label="Alert Status")
                 alert_tbl = gr.Dataframe()

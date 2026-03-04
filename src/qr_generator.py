@@ -13,7 +13,7 @@ class QRGenerator:
         ean = str(ean).strip()
 
         if not product_details:
-            return None, f"❌ Error: EAN '{ean}' unknown. Add to Product Setup first."
+            return None, f"Error: EAN '{ean}' unknown. Add to Product Setup first."
 
         name = product_details['name']
         shelf_life = product_details['shelf_life']
@@ -38,4 +38,4 @@ class QRGenerator:
         filepath = os.path.join(self.output_dir, filename)
         img.save(filepath)
 
-        return img.get_image(), f"{readable_text}\n\n💾 Saved to: {filepath}"
+        return img.get_image(), f"{readable_text}\n\nSaved to: {filepath}"

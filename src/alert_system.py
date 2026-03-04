@@ -11,4 +11,4 @@ class AlertSystem:
         if not expiring:
             return "No alerts.", pd.DataFrame()
 
-        return f"⚠️ {len(expiring)} batches expiring!", pd.DataFrame(expiring)
+        return f"{len(expiring)} batches expiring!", pd.DataFrame(expiring)

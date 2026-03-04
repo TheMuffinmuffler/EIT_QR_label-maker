@@ -16,9 +16,9 @@ class InventoryManager:
                 df = pd.read_csv(self.file_path, dtype={'ean': str})
                 # Convert DataFrame back to list of dicts
                 self.inventory = df.to_dict('records')
-                print(f"✅ Loaded {len(self.inventory)} inventory batches from {self.file_path}")
+                print(f"Loaded {len(self.inventory)} inventory batches from {self.file_path}")
             except Exception as e:
-                print(f"⚠️ Error loading inventory: {e}")
+                print(f"Error loading inventory: {e}")
 
     def save_data(self):
         """Saves current inventory to CSV."""
@@ -32,9 +32,24 @@ class InventoryManager:
 
     def update_stock(self, ean, name, exp_date, qty, action):
         ean = str(ean).strip()
+        exp_date = str(exp_date).strip() if exp_date else ""
 
-        if not ean or not exp_date:
-            return "Scan QR first", self.get_inventory_df()
+        if not ean:
+            return "No EAN provided", self.get_inventory_df()
+
+        # If date is missing and we're removing, find the OLDEST batch (FIFO)
+        if not exp_date and "Remove" in action:
+            matches = [b for b in self.inventory if b['ean'] == ean]
+            if not matches:
+                return f"No stock found for {ean}", self.get_inventory_df()
+            
+            matches.sort(key=lambda x: x['exp_date'])
+            target_batch = matches[0]
+            exp_date = target_batch['exp_date']
+        
+        if not exp_date and "Add" in action:
+            return "Scan QR first (Date missing)", self.get_inventory_df()
+
         try:
             qty = int(qty)
             if qty <= 0: return "Qty must be > 0", self.get_inventory_df()
@@ -49,16 +64,16 @@ class InventoryManager:
                     batch['qty'] += qty
                 else:
                     if batch['qty'] < qty:
-                        return "❌ Not enough stock!", self.get_inventory_df()
+                        return "Not enough stock!", self.get_inventory_df()
                     batch['qty'] -= qty
-                    if batch['qty'] == 0:
+                    if batch['qty'] <= 0:
                         self.inventory.remove(batch)
                 found = True
                 break
 
         if not found:
             if "Remove" in action:
-                return "❌ Batch not found.", self.get_inventory_df()
+                return f"Batch {exp_date} not found for {ean}", self.get_inventory_df()
             else:
                 self.inventory.append({
                     'ean': ean,
@@ -68,7 +83,7 @@ class InventoryManager:
                 })
 
         self.save_data()  # <--- Auto Save
-        return f"✅ {action}: {name}", self.get_inventory_df()
+        return f"{action}: {name} ({exp_date})", self.get_inventory_df()
 
     def get_inventory_df(self):
         if not self.inventory:
