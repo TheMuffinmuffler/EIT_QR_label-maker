@@ -5,7 +5,7 @@ from datetime import datetime
 
 class InventoryManager:
     def __init__(self):
-        self.file_path = "data/inventory.csv"
+        self.file_path = "data/inventory/inventory.csv"
         # Inventory: [{'ean': '12345', 'exp_date': '2023-12-01', 'qty': 10}]
         self.inventory = []
         self.load_data()

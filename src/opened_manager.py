@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 
 class OpenedManager:
     def __init__(self, product_manager, inventory_manager):
-        self.file_path = "data/opened.csv"
+        self.file_path = "data/inventory/opened.csv"
         self.product_manager = product_manager
         self.inventory_manager = inventory_manager
         self.opened_list = []

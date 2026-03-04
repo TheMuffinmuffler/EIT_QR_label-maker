@@ -5,7 +5,7 @@ import os
 class ProductManager:
     def __init__(self):
         # Path to the CSV file
-        self.file_path = "data/products.csv"
+        self.file_path = "data/inventory/products.csv"
         # Database: {'12345': {'name': 'Milk', 'shelf_life': 7}}
         self.products = {}
         self.load_data()

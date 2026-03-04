@@ -8,8 +8,8 @@ from reportlab.lib.units import cm
 class QRGenerator:
     def __init__(self):
         # Path to folders for saving labels and PDFs
-        self.output_dir = "qrcodes"
-        self.pdf_dir = "pdfs"
+        self.output_dir = "data/qrcodes"
+        self.pdf_dir = "data/pdfs"
         self.qr_limit = 5
         self.pdf_limit = 10
         for d in [self.output_dir, self.pdf_dir]:
