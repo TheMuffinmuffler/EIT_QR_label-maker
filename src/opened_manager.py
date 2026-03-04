@@ -11,11 +11,27 @@ class OpenedManager:
         self.load_data()
 
     def load_data(self):
-        """Loads opened products from CSV."""
+        """Loads opened products from CSV and converts dates if needed."""
         if os.path.exists(self.file_path):
             try:
                 df = pd.read_csv(self.file_path, dtype={'ean': str})
                 self.opened_list = df.to_dict('records')
+                
+                # Auto-convert dates
+                converted = False
+                for item in self.opened_list:
+                    for key in ['open_date', 'exp_date']:
+                        date_str = str(item[key])
+                        if "-" in date_str and len(date_str.split('-')[0]) == 4:
+                            try:
+                                dt = datetime.strptime(date_str, "%Y-%m-%d")
+                                item[key] = dt.strftime("%d-%m-%Y")
+                                converted = True
+                            except:
+                                pass
+                if converted:
+                    print(f"Migrated opened dates to DD-MM-YYYY")
+                    self.save_data()
             except Exception as e:
                 print(f"Error loading opened products: {e}")
 
@@ -54,7 +70,7 @@ class OpenedManager:
         shelf_life_opened = details.get('shelf_life_opened', 3) if details else 3
 
         today = datetime.now()
-        open_date_str = today.strftime("%Y-%m-%d")
+        open_date_str = today.strftime("%d-%m-%Y")
         
         # New expiration is today + shelf life after opening
         new_exp_date = today + timedelta(days=shelf_life_opened)
@@ -62,13 +78,13 @@ class OpenedManager:
         # If the original expiration is sooner, use that
         if original_exp_date_str:
             try:
-                orig_exp = datetime.strptime(original_exp_date_str, "%Y-%m-%d")
+                orig_exp = datetime.strptime(original_exp_date_str, "%d-%m-%Y")
                 if orig_exp < new_exp_date:
                     new_exp_date = orig_exp
             except Exception as e:
                 print(f"Date parsing error: {e}")
 
-        new_exp_date_str = new_exp_date.strftime("%Y-%m-%d")
+        new_exp_date_str = new_exp_date.strftime("%d-%m-%Y")
 
         self.opened_list.append({
             'ean': ean,

@@ -1,5 +1,6 @@
 import pandas as pd
 import os
+from datetime import datetime
 
 
 class InventoryManager:
@@ -10,12 +11,28 @@ class InventoryManager:
         self.load_data()
 
     def load_data(self):
-        """Loads inventory from CSV on startup."""
+        """Loads inventory from CSV on startup and converts dates if needed."""
         if os.path.exists(self.file_path):
             try:
                 df = pd.read_csv(self.file_path, dtype={'ean': str})
-                # Convert DataFrame back to list of dicts
                 self.inventory = df.to_dict('records')
+                
+                # Auto-convert dates from YYYY-MM-DD to DD-MM-YYYY
+                converted = False
+                for item in self.inventory:
+                    date_str = str(item['exp_date'])
+                    if "-" in date_str and len(date_str.split('-')[0]) == 4:
+                        try:
+                            dt = datetime.strptime(date_str, "%Y-%m-%d")
+                            item['exp_date'] = dt.strftime("%d-%m-%Y")
+                            converted = True
+                        except:
+                            pass
+                
+                if converted:
+                    print(f"Migrated inventory dates to DD-MM-YYYY")
+                    self.save_data()
+                    
                 print(f"Loaded {len(self.inventory)} inventory batches from {self.file_path}")
             except Exception as e:
                 print(f"Error loading inventory: {e}")
@@ -43,7 +60,8 @@ class InventoryManager:
             if not matches:
                 return f"No stock found for {ean}", self.get_inventory_df()
             
-            matches.sort(key=lambda x: x['exp_date'])
+            # Sort by actual date object
+            matches.sort(key=lambda x: datetime.strptime(x['exp_date'], "%d-%m-%Y"))
             target_batch = matches[0]
             exp_date = target_batch['exp_date']
         
