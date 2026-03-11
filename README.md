@@ -4,13 +4,12 @@ A modular, web-based inventory management system built with **Python**, **NiceGU
 
 ## 🚀 Key Features
 
--   **Product Database**: Manage products with custom shelf life and "opened" shelf life.
+-   **Product Database**: Manage products with custom shelf life.
 -   **QR Label Generator**: Create custom QR codes containing EAN and Expiration Date.
 -   **Printable PDFs**: Generate A4 PDF sheets with multiple labels for easy printing.
 -   **Live Camera Scanner**: Use your webcam to scan QR codes and standard barcodes (EAN-13, etc.).
 -   **FIFO Inventory Tracking**: Automatically removes the oldest stock first when specific expiration dates aren't scanned.
--   **Opened Product Management**: Track products that have been opened, with automatic recalculation of expiration based on "opened" shelf life.
--   **Expiration Alerts**: Instant overview of expired and soon-to-expire items in both main stock and opened items.
+-   **Expiration Alerts**: Instant overview of expired and soon-to-expire items in main stock.
 -   **Sales Mode**: A simple "basket" workflow to scan multiple items and complete sales in bulk.
 
 ## 🛠 Tech Stack
@@ -30,15 +29,13 @@ A modular, web-based inventory management system built with **Python**, **NiceGU
 ├── data/
 │   ├── inventory/          # CSV "Database" files
 │   │   ├── products.csv    # Master product list
-│   │   ├── inventory.csv   # Current stock levels
-│   │   └── opened.csv      # Tracked opened items
+│   │   └── inventory.csv   # Current stock levels
 │   ├── qrcodes/            # Last 5 generated QR images
 │   └── pdfs/               # Last 10 generated printable sheets
 └── src/
     ├── ui.py               # NiceGUI Layout and UI logic
     ├── product_manager.py  # CRUD for product definitions
     ├── inventory_manager.py # Stock adjustment and FIFO logic
-    ├── opened_manager.py   # "Mark as Opened" workflow
     ├── qr_generator.py     # QR and PDF generation + cleanup
     ├── scanner.py          # OpenCV/PyZbar scanning engine
     └── alert_system.py     # Expiration date checker
@@ -70,9 +67,8 @@ A modular, web-based inventory management system built with **Python**, **NiceGU
     -   **Step 1: Setup**: Add your products in the "Product Setup" tab.
     -   **Step 2: Print**: Go to "Print QR Labels", enter an EAN, and generate a printable PDF.
     -   **Step 3: Stock In**: In the "Inventory" tab, scan your printed labels using the webcam to add stock.
-    -   **Step 4: Track**: Use "Opened Products" when you open a carton/bag to track its shorter shelf life.
-    -   **Step 5: Alerts**: Check the "Alerts" tab daily to identify items that need to be removed or sold quickly.
-    -   **Step 6: Sales**: Use the "Sales" tab to scan items for customers and update inventory in bulk.
+    -   **Step 4: Alerts**: Check the "Alerts" tab daily to identify items that need to be removed or sold quickly.
+    -   **Step 5: Sales**: Use the "Sales" tab to scan items for customers and update inventory in bulk.
 
 ## 🧹 Automatic Cleanup
 The system is designed to keep the workspace clean:

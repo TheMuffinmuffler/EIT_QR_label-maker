@@ -41,7 +41,8 @@ class QRGenerator:
 
         name = product_details['name']
         shelf_life = product_details['shelf_life']
-        url = product_details.get('url', '')
+        url = str(product_details.get('url', '')).strip()
+        if url == 'nan': url = '' # Handle pandas NaN
 
         # Determine Expiration Date
         if manual_exp_date:
@@ -53,8 +54,7 @@ class QRGenerator:
 
         # QR Content
         data_string = f"{ean},{exp_date_str}"
-        if url:
-            url = url.strip()
+        if url and url != 'None':
             if not url.startswith("http"):
                 url = "https://" + url
             

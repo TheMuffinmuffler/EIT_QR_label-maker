@@ -20,8 +20,7 @@ class ProductManager:
                     self.products[str(row['EAN'])] = {
                         'name': row['Name'],
                         'shelf_life': int(row['Shelf Life']),
-                        'shelf_life_opened': int(row.get('Shelf Life (Opened)', 3)),
-                        'url': row.get('URL', ''),
+                        'url': str(row.get('URL', '')),
                         'price_in': float(row.get('Price In', 0.0)),
                         'price_out': float(row.get('Price Out', 0.0))
                     }
@@ -37,19 +36,18 @@ class ProductManager:
                 "EAN": ean,
                 "Name": details['name'],
                 "Shelf Life": details['shelf_life'],
-                "Shelf Life (Opened)": details.get('shelf_life_opened', 3),
                 "URL": details.get('url', ''),
                 "Price In": details.get('price_in', 0.0),
                 "Price Out": details.get('price_out', 0.0)
             })
 
-        df = pd.DataFrame(data, columns=["EAN", "Name", "Shelf Life", "Shelf Life (Opened)", "URL", "Price In", "Price Out"])
+        df = pd.DataFrame(data, columns=["EAN", "Name", "Shelf Life", "URL", "Price In", "Price Out"])
         df = df.sort_values(by="EAN", key=lambda x: pd.to_numeric(x, errors='coerce'))
         # Create directory if it doesn't exist just in case
         os.makedirs(os.path.dirname(self.file_path), exist_ok=True)
         df.to_csv(self.file_path, index=False)
 
-    def add_product(self, ean, name, shelf_life, shelf_life_opened=3, url="", price_in=0.0, price_out=0.0):
+    def add_product(self, ean, name, shelf_life, url="", price_in=0.0, price_out=0.0):
         ean = str(ean).strip()
         if not ean or not name:
             return "Error: EAN and Name are required.", self.get_products_df()
@@ -60,7 +58,6 @@ class ProductManager:
         self.products[ean] = {
             'name': name,
             'shelf_life': int(shelf_life),
-            'shelf_life_opened': int(shelf_life_opened),
             'url': url.strip(),
             'price_in': float(price_in),
             'price_out': float(price_out)
@@ -69,13 +66,12 @@ class ProductManager:
         self.save_data()  # <--- Auto Save
         return f"Saved: {name} (EAN: {ean})", self.get_products_df()
 
-    def update_product(self, ean, name, shelf_life, shelf_life_opened=3, url="", price_in=0.0, price_out=0.0):
+    def update_product(self, ean, name, shelf_life, url="", price_in=0.0, price_out=0.0):
         ean = str(ean).strip()
         if ean in self.products:
             self.products[ean] = {
                 'name': name,
                 'shelf_life': int(shelf_life),
-                'shelf_life_opened': int(shelf_life_opened),
                 'url': url.strip(),
                 'price_in': float(price_in),
                 'price_out': float(price_out)
@@ -98,7 +94,7 @@ class ProductManager:
 
     def get_products_df(self):
         if not self.products:
-            return pd.DataFrame(columns=["EAN", "Name", "Shelf Life", "Shelf Life (Opened)", "URL", "Price In", "Price Out", "ACTIONS"])
+            return pd.DataFrame(columns=["EAN", "Name", "Shelf Life", "URL", "Price In", "Price Out", "ACTIONS"])
 
         data = []
         for ean, details in self.products.items():
@@ -106,7 +102,6 @@ class ProductManager:
                 "EAN": ean,
                 "Name": details['name'],
                 "Shelf Life": details['shelf_life'],
-                "Shelf Life (Opened)": details.get('shelf_life_opened', 3),
                 "URL": details.get('url', ''),
                 "Price In": details.get('price_in', 0.0),
                 "Price Out": details.get('price_out', 0.0),
@@ -114,4 +109,3 @@ class ProductManager:
             })
         df = pd.DataFrame(data)
         return df.sort_values(by="EAN", key=lambda x: pd.to_numeric(x, errors='coerce'))
-    

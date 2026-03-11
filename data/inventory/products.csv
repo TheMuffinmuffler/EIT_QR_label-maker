@@ -1,7 +1,9 @@
-EAN,Name,Shelf Life,Shelf Life (Opened)
-2,Svele,2,3
-3,Bacon pølse,1,1
-8,Melk,7,3
-9,Wienerbrød,2,1
-10,Coca cola uten sukker,0,3
-4,Meieri Smør,30,15
+EAN,Name,Shelf Life,URL,Price In,Price Out
+2,Svele,2,nan,0.0,0.0
+3,Bacon pølse,1,nan,0.0,0.0
+4,Meieri Smør,30,nan,0.0,0.0
+8,Melk,7,nan,0.0,0.0
+9,Wienerbrød,2,nan,0.0,0.0
+10,Coca cola uten sukker,0,nan,0.0,0.0
+15482,Skulebølle,2,,2.0,35.0
+5060947547483,Monster Ultra Peachy Keen,180,nan,27.0,15.0

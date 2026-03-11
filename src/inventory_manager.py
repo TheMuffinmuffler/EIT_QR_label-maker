@@ -4,8 +4,8 @@ from datetime import datetime
 
 
 class InventoryManager:
-    def __init__(self):
-        self.file_path = "data/inventory/inventory.csv"
+    def __init__(self, file_path="data/inventory/inventory.csv"):
+        self.file_path = file_path
         # Inventory: [{'ean': '12345', 'exp_date': '2023-12-01', 'qty': 10}]
         self.inventory = []
         self.load_data()
@@ -106,8 +106,17 @@ class InventoryManager:
     def get_inventory_df(self):
         if not self.inventory:
             return pd.DataFrame(columns=["EAN", "Name", "Exp Date", "Qty"])
-        # Capitalize headers for display
+        
         df = pd.DataFrame(self.inventory)
+        
+        # Convert date strings to actual datetime objects for correct sorting
+        df['temp_date'] = pd.to_datetime(df['exp_date'], format='%d-%m-%Y')
+        # Sort by Name (A-Z) and then temp_date (Soonest first)
+        df = df.sort_values(by=['name', 'temp_date'])
+        # Remove temp column
+        df = df.drop(columns=['temp_date'])
+        
+        # Capitalize headers for display
         return df.rename(columns={"ean": "EAN", "name": "Name", "exp_date": "Exp Date", "qty": "Qty"})
 
     def get_raw_inventory(self):
