@@ -85,11 +85,29 @@ class QRScanner:
             return None, None, f"Scan Error: {str(e)}", None
 
     def _process_data(self, data, debug_view, code_type="CODE"):
-        """Helper to parse the CSV format in the QR code or handle raw barcodes"""
+        """Helper to parse the CSV format in the QR code or handle raw barcodes/URLs"""
+        data = data.strip()
+        
+        # Handle URLs
+        if data.startswith(("http://", "https://", "www.")):
+            # Check if there is data embedded in the URL (e.g. ?data=EAN,EXP)
+            if "data=" in data:
+                try:
+                    # Extract the part after data=
+                    params = data.split("data=")[1].split("&")[0]
+                    if "," in params:
+                        ean, date = params.split(",", 1)
+                        return ean.strip(), date.strip(), f"Scanned URL Data ({ean.strip()})", debug_view
+                except Exception as e:
+                    print(f"Error parsing URL data: {e}")
+            
+            # If no data found or parsing failed, return it as a pure link
+            return data, None, f"Scanned Link: {data}", debug_view
+
         if "," in data:
             parts = data.split(',')
             if len(parts) >= 2:
                 return parts[0].strip(), parts[1].strip(), f"Scanned QR ({parts[0].strip()})", debug_view
-        
+
         # If no comma, it's likely a standard barcode (EAN-13, etc)
         return data, None, f"Scanned {code_type}: {data}", debug_view

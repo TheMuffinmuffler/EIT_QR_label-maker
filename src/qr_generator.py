@@ -41,6 +41,7 @@ class QRGenerator:
 
         name = product_details['name']
         shelf_life = product_details['shelf_life']
+        url = product_details.get('url', '')
 
         # Determine Expiration Date
         if manual_exp_date:
@@ -51,7 +52,18 @@ class QRGenerator:
             exp_date_str = exp_date.strftime("%d-%m-%Y")
 
         # QR Content
-        qr_content = f"{ean},{exp_date_str}"
+        data_string = f"{ean},{exp_date_str}"
+        if url:
+            url = url.strip()
+            if not url.startswith("http"):
+                url = "https://" + url
+            
+            # Ensure URL format
+            separator = "&data=" if "?" in url else "?data="
+            qr_content = f"{url}{separator}{data_string}"
+        else:
+            qr_content = data_string
+
         readable_text = f"Item: {name}\nEAN: {ean}\nExp: {exp_date_str}"
 
         # Generate Image
