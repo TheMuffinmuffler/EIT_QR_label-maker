@@ -1,9 +1,9 @@
 EAN,Name,Shelf Life,URL,Price In,Price Out
-2,Svele,2,nan,0.0,0.0
-3,Bacon pølse,1,nan,0.0,0.0
-4,Meieri Smør,30,nan,0.0,0.0
-8,Melk,7,nan,0.0,0.0
-9,Wienerbrød,2,nan,0.0,0.0
-10,Coca cola uten sukker,0,nan,0.0,0.0
-15482,Skulebølle,2,,2.0,35.0
-5060947547483,Monster Ultra Peachy Keen,180,nan,27.0,15.0
+4,Smør,7,nan,25.0,25.0
+15482,Skulebølle,3,nan,0.0,35.0
+123456,Melk,20,nan,17.0,20.0
+244633,Meierismør,60,nan,30.0,30.0
+321453,Baguett med skinke,1,nan,0.0,40.0
+465743,Svele,2,nan,0.0,20.0
+5060947547483,Monster Ultra Peachy Keen,180,nan,15.0,35.0
+12432523',Mel,180,,0.2,0.2

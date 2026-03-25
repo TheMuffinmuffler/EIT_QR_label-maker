@@ -47,7 +47,7 @@ class InventoryManager:
         os.makedirs(os.path.dirname(self.file_path), exist_ok=True)
         df.to_csv(self.file_path, index=False)
 
-    def update_stock(self, ean, name, exp_date, qty, action):
+    def update_stock(self, ean, name, exp_date, qty, action, shelf_life=None):
         ean = str(ean).strip()
         exp_date = str(exp_date).strip() if exp_date else ""
 
@@ -65,11 +65,17 @@ class InventoryManager:
             target_batch = matches[0]
             exp_date = target_batch['exp_date']
         
+        # If date is missing and we're adding, use shelf_life if provided
         if not exp_date and "Add" in action:
-            return "Scan QR first (Date missing)", self.get_inventory_df()
+            if shelf_life is not None:
+                from datetime import timedelta
+                new_date = datetime.now() + timedelta(days=int(shelf_life))
+                exp_date = new_date.strftime("%d-%m-%Y")
+            else:
+                return "Scan QR first (Date missing)", self.get_inventory_df()
 
         try:
-            qty = int(qty)
+            qty = float(qty)
             if qty <= 0: return "Qty must be > 0", self.get_inventory_df()
         except:
             return "Invalid Qty", self.get_inventory_df()
@@ -121,3 +127,54 @@ class InventoryManager:
 
     def get_raw_inventory(self):
         return self.inventory
+
+    def deduct_total(self, ean, name, total_to_remove):
+        """
+        Deducts quantity from all batches of an EAN using FIFO.
+        Allows negative quantity if total stock is insufficient.
+        Returns (is_insufficient, total_available)
+        """
+        ean = str(ean).strip()
+        total_to_remove = float(total_to_remove)
+
+        # Get all batches for this EAN
+        matches = [b for b in self.inventory if b['ean'] == ean]
+        # Sort by date (FIFO)
+        matches.sort(key=lambda x: datetime.strptime(x['exp_date'], "%d-%m-%Y"))
+
+        total_available = sum(b['qty'] for b in matches)
+        is_insufficient = total_available < total_to_remove
+
+        remaining = total_to_remove
+
+        if not matches:
+            # Create a new batch with negative qty
+            # Use today as exp_date
+            today_str = datetime.now().strftime("%d-%m-%Y")
+            self.inventory.append({
+                'ean': ean,
+                'name': name,
+                'exp_date': today_str,
+                'qty': -remaining
+            })
+        else:
+            # Deduct from batches in order
+            for i, batch in enumerate(matches):
+                if i == len(matches) - 1:
+                    # Last batch takes the rest, potentially going negative
+                    batch['qty'] -= remaining
+                    remaining = 0
+                else:
+                    if batch['qty'] >= remaining:
+                        batch['qty'] -= remaining
+                        remaining = 0
+                        break
+                    else:
+                        remaining -= batch['qty']
+                        batch['qty'] = 0
+
+            # Remove batches that reached exactly 0
+            self.inventory = [b for b in self.inventory if b['qty'] != 0]
+
+        self.save_data()
+        return is_insufficient, total_available

@@ -1,0 +1,6 @@
+Customer ID,Name,Company Name,Org Number,VAT Number,Phone,Email,Address,Website,Notes
+CUST-001,Sundar Pichai,Google Norway AS,987654321,NO 987 654 321 MVA,+47 21 00 00 00,billing@google.no,"Stortorvet 7, 0155 Oslo",www.google.no,Premium tech partner.
+CUST-002,Anders Opedal,Equinor ASA,923609016,NO 923 609 016 MVA,+47 51 99 00 00,invoice@equinor.com,"Forusbeen 50, 4035 Stavanger",www.equinor.com,Energy sector leader.
+CUST-003,Sigve Brekke,Telenor Norge AS,976967682,NO 976 967 682 MVA,+47 810 77 000,kundeservice@telenor.no,"Snarøyveien 30, 1331 Fornebu",www.telenor.no,Telecom provider.
+CUST-004,John Doe,Acme Corporation,123123123,US 123-ABC,555-0199,accounts@acme.com,"123 Industrial Way, Springfield",www.acme.com,Global supplier of everything.
+CUST-005,Hank Scorpio,Globex Corporation,666777888,INT-999-G,555-BOSS,h.scorpio@globex.com,"Cypress Creek, USA",www.globex.com,Very friendly CEO.

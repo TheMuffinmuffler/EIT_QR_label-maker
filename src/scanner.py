@@ -62,7 +62,7 @@ class QRScanner:
 
             if not decoded_objects:
                 self.blank_count += 1
-                if self.blank_count > 10:  # Need 10 blank frames to reset
+                if self.blank_count > 5:  # Need 10 blank frames to reset
                     self.last_data = None
                 return None, None, "Scanning... Keep steady", debug_view
 
