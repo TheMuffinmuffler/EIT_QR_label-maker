@@ -82,6 +82,33 @@ class InventoryManager:
 
         # Find specific batch
         found = False
+        
+        if "Add" in action:
+            # First, try to "pay back" any negative stock for this EAN (FIFO)
+            negative_batches = [b for b in self.inventory if b['ean'] == ean and b['qty'] < 0]
+            # Sort by date to pay back oldest "debt" first
+            negative_batches.sort(key=lambda x: datetime.strptime(x['exp_date'], "%d-%m-%Y"))
+            
+            for neg_batch in negative_batches:
+                if qty <= 0: break
+                
+                needed_to_clear = abs(neg_batch['qty'])
+                if qty >= needed_to_clear:
+                    qty -= needed_to_clear
+                    neg_batch['qty'] = 0
+                else:
+                    neg_batch['qty'] += qty
+                    qty = 0
+            
+            # Remove any batches we just cleared to 0
+            self.inventory = [b for b in self.inventory if b['qty'] != 0]
+            
+            if qty <= 0:
+                # We used all new stock to cover negative debt
+                self.save_data()
+                return f"{action}: {name} (Used to cover negative stock)", self.get_inventory_df()
+
+        # If we still have qty left, find or create the specific batch
         for batch in self.inventory:
             if batch['ean'] == ean and batch['exp_date'] == exp_date:
                 if "Add" in action:
@@ -90,13 +117,15 @@ class InventoryManager:
                     if batch['qty'] < qty:
                         return "Not enough stock!", self.get_inventory_df()
                     batch['qty'] -= qty
-                    if batch['qty'] <= 0:
-                        self.inventory.remove(batch)
                 found = True
                 break
 
         if not found:
             if "Remove" in action:
+                # If we didn't find the batch but want to remove, we allow it to go negative
+                # This would usually be handled by deduct_total for recipes, 
+                # but if called directly via UI 'Remove', we can support it here too if desired.
+                # For now, keep the original logic:
                 return f"Batch {exp_date} not found for {ean}", self.get_inventory_df()
             else:
                 self.inventory.append({
@@ -105,6 +134,9 @@ class InventoryManager:
                     'exp_date': exp_date,
                     'qty': qty
                 })
+
+        # Final cleanup: remove any exactly 0 batches
+        self.inventory = [b for b in self.inventory if b['qty'] != 0]
 
         self.save_data()  # <--- Auto Save
         return f"{action}: {name} ({exp_date})", self.get_inventory_df()
