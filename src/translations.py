@@ -1,6 +1,6 @@
 TRANSLATIONS = {
     'en': {
-        'title': 'Store Inventory System',
+        'title': 'ShelfLife',
         'camera': 'Camera',
         'language': 'Language',
         'tab_product_setup': '1. Product Setup',
@@ -115,7 +115,7 @@ TRANSLATIONS = {
         'tab_customer_ordering': 'Customer Ordering',
     },
     'no': {
-        'title': 'Butikkinventarsystem',
+        'title': 'ShelfLife',
         'camera': 'Kamera',
         'language': 'Språk',
         'tab_product_setup': '1. Produktoppsett',

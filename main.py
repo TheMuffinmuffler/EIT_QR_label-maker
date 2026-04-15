@@ -25,4 +25,4 @@ create_ui(products, inventory, internal_inventory, customers, orders, recipes, q
 
 # 3. Run
 if __name__ in {"__main__", "__mp_main__", "builtins"}:
-    ui.run(title="Modular Inventory System - NiceGUI", port=8080)
+    ui.run(title="ShelfLife", port=8080)

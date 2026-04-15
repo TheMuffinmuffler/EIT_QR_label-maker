@@ -1,4 +1,4 @@
-# Store Inventory & QR Label System
+# ShelfLife
 
 A modular, web-based inventory management system built with **Python**, **NiceGUI**, and **OpenCV**. This system is designed for small stores or cafes to track product shelf life, generate custom QR labels, and manage stock using live camera scanning.
 

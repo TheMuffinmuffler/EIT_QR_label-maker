@@ -1,4 +1,4 @@
-from nicegui import ui, events, context
+from nicegui import ui, events, context, run
 import pandas as pd
 import cv2
 import base64
@@ -6,6 +6,53 @@ import numpy as np
 from datetime import datetime, timedelta
 import asyncio
 from src.translations import TRANSLATIONS
+import threading
+import time
+
+class ThreadedCamera:
+    def __init__(self, source=0):
+        self.source = source
+        self.cap = None
+        self.frame = None
+        self.running = False
+        self.lock = threading.Lock()
+        self.thread = None
+
+    def start(self):
+        if self.running: return False
+        self.cap = cv2.VideoCapture(self.source)
+        if not self.cap.isOpened():
+            self.cap = cv2.VideoCapture(1)
+        
+        if self.cap.isOpened():
+            self.running = True
+            self.thread = threading.Thread(target=self._update, daemon=True)
+            self.thread.start()
+            return True
+        return False
+
+    def _update(self):
+        while self.running:
+            if self.cap:
+                ret, frame = self.cap.read()
+                if ret:
+                    with self.lock:
+                        self.frame = frame
+                else:
+                    time.sleep(0.01)
+            else:
+                break
+
+    def get_frame(self):
+        with self.lock:
+            return self.frame.copy() if self.frame is not None else None
+
+    def stop(self):
+        self.running = False
+        if self.cap:
+            self.cap.release()
+            self.cap = None
+        self.frame = None
 
 def normalize_date(date_str):
     """Converts YYYY-MM-DD to DD-MM-YYYY if detected, otherwise returns original."""
@@ -23,11 +70,30 @@ def normalize_date(date_str):
     return date_str
 
 def create_ui(products, inventory, internal_inventory, customers, orders, recipes, qr_gen, alerts, scanner):
-    # Add CSS for zebra striping in tables
+    # Add CSS for zebra striping and global font size increase
     ui.add_head_html('''
         <style>
             .q-table tbody tr:nth-child(even) {
                 background-color: #f2f2f2;
+            }
+            /* Increase font size for labels, buttons, and fields, but skip those inside tables */
+            .nicegui-label:not(.q-table *), 
+            .q-btn:not(.q-table *), 
+            .q-field:not(.q-table *),
+            .q-toggle:not(.q-table *),
+            .q-select:not(.q-table *) {
+                font-size: 1.2rem !important;
+            }
+            .q-field__label, .q-field__native, .q-field__input {
+                font-size: 1.2rem !important;
+            }
+            /* Increase font size for Tabs */
+            .q-tab__label {
+                font-size: 1.2rem !important;
+                font-weight: bold !important;
+            }
+            .q-tab {
+                min-height: 60px !important;
             }
         </style>
     ''')
@@ -45,7 +111,11 @@ def create_ui(products, inventory, internal_inventory, customers, orders, recipe
         'selected_filter_customer_id': None,
         'order_search_query': '',
         'video_capture': None,
+        'threaded_cap': ThreadedCamera(),
         'last_qr_path': None,
+        'frame_count': 0,
+        'is_scanning': False,
+        'last_msg': 'Ready...',
         'lang': 'en'
     }
 
@@ -88,75 +158,84 @@ def create_ui(products, inventory, internal_inventory, customers, orders, recipe
             render_header.refresh()
             render_content.refresh()
 
-        with ui.row().classes('items-center'):
-            ui.label(t('title')).classes('text-2xl font-bold text-primary mr-8')
-            ui.switch(t('camera'), on_change=toggle_scanner).bind_value(state, 'scanner_running')
-            ui.select({'en': 'English', 'no': 'Norsk'}, label=t('language'), 
-                      value=state['lang'], on_change=handle_lang_change).classes('w-32 ml-4')
-        
-        with ui.row().classes('items-center gap-4'):
-            ui_elements['scanner_view'] = ui.image().classes('w-48 h-24 bg-black border rounded shadow-sm')
-            ui_elements['scanner_log'] = ui.label(t('ready')).classes('text-xs font-mono w-48 overflow-hidden')
+        with ui.row().classes('w-full items-center justify-center mb-4 px-4 relative h-60'):
+            ui.image('images/image.png').props('fit=contain').classes('w-60 h-60 absolute left-4')
+            ui.label(t('title')).classes('text-5xl font-bold text-primary')
+
+        with ui.row().classes('w-full items-center justify-between px-4'):
+            with ui.row().classes('items-center gap-4'):
+                ui_elements['scanner_view'] = ui.image().props('no-spinner no-transition')\
+                    .classes('w-48 h-24 border rounded shadow-sm')\
+                    .bind_visibility_from(state, 'scanner_running')
+                ui_elements['scanner_log'] = ui.label('').classes('text-sm font-mono w-48 overflow-hidden')\
+                    .bind_visibility_from(state, 'scanner_running')
+                ui_elements['scanner_log'].bind_text_from(state, 'last_msg')
+                ui.switch(t('camera'), on_change=toggle_scanner).bind_value(state, 'scanner_running')
+                ui.select({'en': 'English', 'no': 'Norsk'}, label=t('language'), 
+                          value=state['lang'], on_change=handle_lang_change).classes('w-32 ml-4')
+            
+            # Placeholder or empty space if needed on the right
+            ui.element('div')
 
     def toggle_scanner(e):
         state['scanner_running'] = e.value
         if e.value:
-            if state['video_capture'] is None:
-                try:
-                    state['video_capture'] = cv2.VideoCapture(0)
-                    if not state['video_capture'].isOpened():
-                        state['video_capture'] = cv2.VideoCapture(1)
-                    
-                    if not state['video_capture'].isOpened():
-                        ui.notify("Could not open camera.", type='negative')
-                        state['scanner_running'] = False
-                        state['video_capture'] = None
-                except Exception as ex:
-                    ui.notify(f"Camera error: {ex}", type='negative')
+            if not state['threaded_cap'].running:
+                success = state['threaded_cap'].start()
+                if not success:
+                    ui.notify("Could not open camera.", type='negative')
                     state['scanner_running'] = False
-                    state['video_capture'] = None
         else:
+            state['threaded_cap'].stop()
+            state['is_scanning'] = False
             if 'scanner_view' in ui_elements:
                 ui_elements['scanner_view'].source = ''
-            if 'scanner_log' in ui_elements:
-                ui_elements['scanner_log'].text = t('scanner_stopped')
-            if state['video_capture']:
-                state['video_capture'].release()
-                state['video_capture'] = None
+            state['last_msg'] = t('scanner_stopped')
+
         camera_timer.active = state['scanner_running']
 
     async def update_camera_frame():
-        if not state['scanner_running'] or state['video_capture'] is None:
+        if not state['scanner_running'] or not state['threaded_cap'].running:
             return
         
-        ret, frame = state['video_capture'].read()
-        if not ret:
+        frame = state['threaded_cap'].get_frame()
+        if frame is None:
             return
         
-        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        ean, date, msg, debug_img = scanner.scan_image(rgb_frame)
-        
-        if ean:
-            date = normalize_date(date)
-            if state['main_view'] == 'sale':
-                await handle_sale_scan_global(ean, date)
-            else:
-                current_tab_text = state['current_tab']
-                if current_tab_text == 'inventory':
-                    if 'reg_ean_input' in ui_elements: ui_elements['reg_ean_input'].value = ean
-                    if 'reg_date_input' in ui_elements: ui_elements['reg_date_input'].value = date if date else ''
-                elif current_tab_text == 'internal_inventory':
-                    if 'internal_ean_input' in ui_elements: ui_elements['internal_ean_input'].value = ean
-                    if 'internal_date_input' in ui_elements: ui_elements['internal_date_input'].value = date if date else ''
-            ui.notify(f"Scanned: {ean}")
-
-        if debug_img is not None and 'scanner_view' in ui_elements:
-            _, buffer = cv2.imencode('.jpg', cv2.cvtColor(debug_img, cv2.COLOR_RGB2BGR))
+        # UI Refresh (smooth video)
+        if 'scanner_view' in ui_elements:
+            _, buffer = cv2.imencode('.jpg', frame)
             b64_img = base64.b64encode(buffer).decode()
             ui_elements['scanner_view'].source = f'data:image/jpeg;base64,{b64_img}'
-            ui_elements['scanner_log'].text = msg
 
-    camera_timer = ui.timer(0.1, update_camera_frame, active=state['scanner_running'])
+        # Async Scanning (don't block the video stream)
+        if not state['is_scanning']:
+            state['is_scanning'] = True
+            try:
+                # Convert to RGB and scan in background thread
+                rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                # Use NiceGUI run.cpu_bound to prevent blocking the main event loop
+                result = await run.cpu_bound(scanner.scan_image, rgb_frame)
+                ean, date, msg, _ = result
+                
+                state['last_msg'] = msg
+                if ean:
+                    date = normalize_date(date)
+                    if state['main_view'] == 'sale':
+                        await handle_sale_scan_global(ean, date)
+                    else:
+                        current_tab_text = state['current_tab']
+                        if current_tab_text == 'inventory':
+                            if 'reg_ean_input' in ui_elements: ui_elements['reg_ean_input'].value = ean
+                            if 'reg_date_input' in ui_elements: ui_elements['reg_date_input'].value = date if date else ''
+                        elif current_tab_text == 'internal_inventory':
+                            if 'internal_ean_input' in ui_elements: ui_elements['internal_ean_input'].value = ean
+                            if 'internal_date_input' in ui_elements: ui_elements['internal_date_input'].value = date if date else ''
+                    ui.notify(f"Scanned: {ean}")
+            finally:
+                state['is_scanning'] = False
+
+    camera_timer = ui.timer(0.04, update_camera_frame, active=state['scanner_running'])
 
     # --- Shared Logic Functions ---
     def refresh_all_tables():

@@ -1,3 +1,5 @@
 Order ID,Customer ID,Customer Name,Date,Total,Due Date,Status
-ORD-003,CUST-003,Sigve Brekke,18-03-2026 14:37:38,825.0,2026-03-20,Finished
+ORD-003,CUST-003,Sigve Brekke,18-03-2026 14:37:38,825.0,2026-03-20,Received
 ORD-004,CUST-002,Anders Opedal,18-03-2026 14:47:48,590.0,2026-03-19,Received
+ORD-005,CUST-003,Sigve Brekke,09-04-2026 09:34:42,35.0,2026-04-16,Received
+ORD-006,CUST-002,Anders Opedal,14-04-2026 08:39:31,20.0,2026-04-17,Received
